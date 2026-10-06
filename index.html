@@ -69,6 +69,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
    <div class="chk"><input type="checkbox" id="holes"><label for="holes">ลบสีขาวในรูตรงกลางด้วย <span class="hint">(แหวน น็อต ที่มีรู)</span></label></div>
    <label class="f" for="tol">ความแรงในการลบ <span class="hint">(เพิ่มถ้ายังเหลือขอบขาว ลดถ้าลบโดนตัวชิ้นงาน)</span></label>
    <input type="range" id="tol" min="5" max="120" value="45" style="width:100%;margin-bottom:12px">
+   <label class="f" for="edge">ลบขอบเพิ่ม <span class="hint">(เพิ่มถ้ายังมีเส้นขอบขาวบางๆ รอบชิ้นงาน)</span></label>
+   <input type="range" id="edge" min="0" max="6" value="2" style="width:100%;margin-bottom:12px">
    <label class="f" for="t3">ช่อง 3 ข้อความ <span class="hint">(ตัวอักษร 22)</span></label>
    <input type="text" id="t3" placeholder="เช่น M 10 × 30">
    <label class="f" for="t4">ช่อง 4 ข้อความ <span class="hint">(ตัวอักษร 8)</span></label>
@@ -145,11 +147,15 @@ function applyBg(){
   while(st.length){var i=st.pop(),px=i%w,py=(i-px)/w;
    if(px>0)push(i-1);if(px<w-1)push(i+1);if(py>0)push(i-w);if(py<h-1)push(i+w)}
   }
-  var soft=lim-t; // feather zone just inside the object edge
-  for(var j=0;j<w*h;j++){
-   if(seen[j]){d[j*4+3]=0;continue}
-   var px2=j%w,py2=(j-px2)/w,near=(px2>0&&seen[j-1])||(px2<w-1&&seen[j+1])||(py2>0&&seen[j-w])||(py2<h-1&&seen[j+w]);
-   if(near){var mn=Math.min(d[j*4],d[j*4+1],d[j*4+2]);if(mn>soft)d[j*4+3]=Math.max(0,Math.min(255,(255-mn)/(255-soft)*255*1.6))}
+  var adj=function(j){var u=j%w,v=(j-u)/w;return (u>0&&seen[j-1])||(u<w-1&&seen[j+1])||(v>0&&seen[j-w])||(v<h-1&&seen[j+w])};
+  var E=+$('edge').value;
+  for(var e=0;e<E;e++){ // eat the light-grey fringe left around the object
+   var add=[];
+   for(var j=0;j<w*h;j++){if(!seen[j]&&adj(j)){var mn=Math.min(d[j*4],d[j*4+1],d[j*4+2]);if(mn>lim-70)add.push(j)}}
+   for(var q=0;q<add.length;q++)seen[add[q]]=1;
+  }
+  for(var j2=0;j2<w*h;j2++){
+   if(seen[j2])d[j2*4+3]=0;else if(adj(j2))d[j2*4+3]=Math.min(d[j2*4+3],170);
   }
   x.putImageData(id,0,0);
  }
@@ -158,6 +164,7 @@ function applyBg(){
 $('rmbg').addEventListener('change',applyBg);
 $('holes').addEventListener('change',applyBg);
 $('tol').addEventListener('input',applyBg);
+$('edge').addEventListener('input',applyBg);
 function setEditUI(on){$('add').textContent=on?'บันทึกการแก้ไข':'เพิ่มลงหน้าปริ้น';$('cancel').style.display=on?'':'none'}
 $('add').addEventListener('click',function(){
  if(!$('t3').value.trim()&&!$('t4').value.trim()&&!imgData){$('t3').focus();return}
