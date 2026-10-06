@@ -39,6 +39,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
 .lb .b3{font-weight:800;font-size:22pt;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;line-height:1}
 .lb .b4{font-weight:800;font-size:8pt;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;line-height:1}
 .lb .x{position:absolute;top:2px;right:2px;width:18px;height:18px;padding:0;line-height:1;font-size:12px;border-radius:50%;background:#c0392b;border-color:#c0392b;color:#fff}
+.sheet .lb{cursor:pointer}
+.lb.editing{outline:3px solid #e67e22;outline-offset:2px}
 .sheets{display:grid;gap:18px;justify-items:start;overflow-x:auto}
 .sheet{width:21cm;height:29.7cm;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.25);padding:1.75cm 0 0 3.5cm;display:grid;grid-template-columns:6cm 6cm;grid-auto-rows:2.7cm;gap:2cm 2cm;align-content:start;flex:none}
 .empty{color:var(--mute);padding:30px;text-align:center}
@@ -72,6 +74,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
    <input type="text" id="t4" placeholder="เช่น รหัส 22BOL001BZM10030ABS">
    <div class="chk"><input type="checkbox" id="keep" checked><label for="keep">จำช่อง 1 และรูปไว้สำหรับป้ายถัดไป</label></div>
    <button id="add">เพิ่มลงหน้าปริ้น</button>
+   <button class="ghost" id="cancel" style="display:none;margin-left:8px">ยกเลิกแก้ไข</button>
   </div>
   <div class="panel">
    <strong>ตัวอย่างป้ายที่กำลังกรอก</strong>
@@ -82,18 +85,18 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
     <span id="count" class="small"></span><span id="save" class="small"></span>
     <div id="msg" class="small" role="status" style="width:100%;color:#c0392b"></div>
    </div>
-   <p class="small">ป้ายที่เรียงไว้จะถูกจำไว้ในเบราว์เซอร์นี้อัตโนมัติ ปิดหน้าแล้วกลับมาเปิดใหม่ก็ยังอยู่ กด “ดาวน์โหลด PDF” จะได้ไฟล์ A4 ขนาดจริงพร้อมปริ้น</p>
+   <p class="small">ป้ายที่เรียงไว้จะถูกจำไว้ในเบราว์เซอร์นี้อัตโนมัติ ปิดหน้าแล้วกลับมาเปิดใหม่ก็ยังอยู่ คลิกที่ป้ายในหน้าปริ้นเพื่อแก้ไขป้ายเก่า (กรอบสีส้ม) แล้วกด “บันทึกการแก้ไข” กด “ดาวน์โหลด PDF” จะได้ไฟล์ A4 ขนาดจริงพร้อมปริ้น</p>
   </div>
  </div>
  <div class="sheets" id="sheets"></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-var items=[],imgData='',srcCanvas=null;
+var items=[],imgData='',srcCanvas=null,editIdx=-1;
 var $=function(i){return document.getElementById(i)};
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function label(o,idx){
- return '<div class="lb"><div class="l"><div class="b1">'+esc(o.t1)+'</div><div class="b2">'+(o.img?'<img src="'+o.img+'" alt="">':'')+'</div></div>'+
+ return '<div class="lb'+(idx!==undefined&&idx===editIdx?' editing':'')+'"'+(idx!==undefined?' data-i="'+idx+'"':'')+'><div class="l"><div class="b1">'+esc(o.t1)+'</div><div class="b2">'+(o.img?'<img src="'+o.img+'" alt="">':'')+'</div></div>'+
  '<div class="r"><div class="b3">'+esc(o.t3)+'</div><div class="b4">'+esc(o.t4)+'</div></div>'+
  (idx!==undefined?'<button class="x" data-i="'+idx+'" title="ลบป้ายนี้" aria-label="ลบป้ายนี้">×</button>':'')+'</div>';
 }
@@ -127,7 +130,7 @@ $('img').addEventListener('change',function(e){
 });
 
 function applyBg(){
- if(!srcCanvas){imgData='';live();return}
+ if(!srcCanvas){live();return}
  var w=srcCanvas.width,h=srcCanvas.height,c=document.createElement('canvas');
  c.width=w;c.height=h;var x=c.getContext('2d');x.drawImage(srcCanvas,0,0);
  if($('rmbg').checked){
@@ -150,17 +153,27 @@ function applyBg(){
 }
 $('rmbg').addEventListener('change',applyBg);
 $('tol').addEventListener('input',applyBg);
+function setEditUI(on){$('add').textContent=on?'บันทึกการแก้ไข':'เพิ่มลงหน้าปริ้น';$('cancel').style.display=on?'':'none'}
 $('add').addEventListener('click',function(){
  if(!$('t3').value.trim()&&!$('t4').value.trim()&&!imgData){$('t3').focus();return}
- items.push({t1:$('t1').value,img:imgData,t3:$('t3').value,t4:$('t4').value});
+ var o={t1:$('t1').value,img:imgData,t3:$('t3').value,t4:$('t4').value};
+ if(editIdx>=0&&items[editIdx]){items[editIdx]=o}else{items.push(o)}
+ editIdx=-1;setEditUI(false);
  $('t3').value='';$('t4').value='';
  if(!$('keep').checked){$('t1').value='';imgData='';srcCanvas=null;$('img').value=''}
  live();render();$('t3').focus();
 });
+$('cancel').addEventListener('click',function(){editIdx=-1;setEditUI(false);$('t3').value='';$('t4').value='';live();render()});
 ['t3','t4'].forEach(function(i){$(i).addEventListener('keydown',function(e){if(e.key==='Enter')$('add').click()})});
 $('sheets').addEventListener('click',function(e){
- var b=e.target.closest('.x');if(!b)return;
- items.splice(+b.getAttribute('data-i'),1);render();
+ var b=e.target.closest('.x');
+ if(b){items.splice(+b.getAttribute('data-i'),1);editIdx=-1;setEditUI(false);render();return}
+ var l=e.target.closest('.lb');if(!l)return;
+ var i=+l.getAttribute('data-i'),o=items[i];if(!o)return;
+ editIdx=i;srcCanvas=null;imgData=o.img;$('img').value='';
+ $('t1').value=o.t1;$('t3').value=o.t3;$('t4').value=o.t4;
+ setEditUI(true);live();render();
+ $('t3').scrollIntoView({block:'center'});$('t3').focus();
 });
 var clrT=null;
 $('clear').addEventListener('click',function(){
