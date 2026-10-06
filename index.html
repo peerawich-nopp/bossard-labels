@@ -23,6 +23,7 @@ label.f{display:block;font-weight:700;margin:0 0 4px}
 input[type=text]{width:100%;padding:9px 10px;font:inherit;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-bottom:12px}
 input[type=file]{width:100%;margin-bottom:12px;font:inherit;color:var(--ink)}
 .chk{display:flex;gap:8px;align-items:center;margin-bottom:14px;font-size:.95rem}
+select{padding:9px 10px;font:inherit;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:200px;max-width:100%}
 button{font:inherit;font-weight:700;padding:10px 16px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:var(--accink);cursor:pointer}
 button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
@@ -59,6 +60,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
 <body>
 <div class="app">
  <div class="noprint"><h1>ทำป้ายติดกล่องอุปกรณ์</h1><p class="small">ป้ายขนาด 6 × 2.7 ซม. เรียงลงหน้า A4 ได้หน้าละ 12 ป้าย เว้นระยะห่างระหว่างป้าย 2 ซม. เท่ากันทุกด้านเพื่อตัดและเคลือบ</p></div>
+ <div class="panel noprint">
+  <label class="f" for="proj">แผนก <span class="hint">(แต่ละแผนกมีรายการป้ายของตัวเอง สลับไปมาได้)</span></label>
+  <div class="row"><select id="proj"></select><button class="ghost" id="pnew">+ แผนกใหม่</button><button class="ghost" id="pren">เปลี่ยนชื่อ</button><button class="ghost" id="pdel">ลบแผนก</button></div>
+  <div class="row" id="prow" style="display:none;margin-top:10px"><input type="text" id="pin" style="margin:0;width:260px;max-width:100%" aria-label="ชื่อแผนก"><button id="pok">ตกลง</button><button class="ghost" id="pcancel">ยกเลิก</button></div>
+ </div>
  <div class="top noprint">
   <div class="panel">
    <label class="f" for="t1">ช่อง 1 ข้อความ <span class="hint">(ตัวอักษร 8)</span></label>
@@ -84,7 +90,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
    <div class="prevwrap"><div id="live"></div></div>
    <div class="row">
     <button id="pdf">ดาวน์โหลด PDF</button>
-    <button class="ghost" id="clear">ล้างทั้งหมด</button>
+    <button class="ghost" id="clear">ล้างป้ายในแผนกนี้</button>
     <span id="count" class="small"></span><span id="save" class="small"></span>
     <div id="msg" class="small" role="status" style="width:100%;color:#c0392b"></div>
    </div>
@@ -95,7 +101,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-var items=[],imgData='',srcCanvas=null,editIdx=-1;
+var items=[],imgData='',srcCanvas=null,editIdx=-1,projects=[{n:'แผนก 1',items:[]}],cur=0;
 var $=function(i){return document.getElementById(i)};
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function label(o,idx){
@@ -113,8 +119,8 @@ function render(){
   h+='</div>';
  }
  $('sheets').innerHTML=h;
- persist();
- $('count').textContent=items.length+' ป้าย / '+Math.ceil(items.length/12)+' หน้า';
+ renderProj();persist();
+ $('count').textContent='แผนก “'+projects[cur].n+'” '+items.length+' ป้าย / '+Math.ceil(items.length/12)+' หน้า';
 }
 ['t1','t3','t4'].forEach(function(i){$(i).addEventListener('input',live)});
 $('img').addEventListener('change',function(e){
@@ -198,23 +204,55 @@ $('sheets').addEventListener('click',function(e){
 var clrT=null;
 $('clear').addEventListener('click',function(){
  var b=$('clear');if(!items.length)return;
- if(clrT){clearTimeout(clrT);clrT=null;items=[];render();b.textContent='ล้างทั้งหมด';return}
- b.textContent='กดอีกครั้งเพื่อยืนยันล้างทั้งหมด';
- clrT=setTimeout(function(){clrT=null;b.textContent='ล้างทั้งหมด'},4000);
+ if(clrT){clearTimeout(clrT);clrT=null;items=[];render();b.textContent='ล้างป้ายในแผนกนี้';return}
+ b.textContent='กดอีกครั้งเพื่อยืนยันล้างป้ายในแผนกนี้';
+ clrT=setTimeout(function(){clrT=null;b.textContent='ล้างป้ายในแผนกนี้'},4000);
 });
 
 function msg(t){var m=$('msg');m.textContent=t;clearTimeout(msg.t);msg.t=setTimeout(function(){m.textContent=''},6000)}
 function persist(){
- try{var u=[],m={};
-  var it=items.map(function(o){var k=-1;if(o.img){if(m[o.img]===undefined){m[o.img]=u.length;u.push(o.img)}k=m[o.img]}return{a:o.t1,b:k,c:o.t3,d:o.t4}});
-  localStorage.setItem('labels_v1',JSON.stringify({u:u,i:it}));$('save').textContent=' · เก็บอัตโนมัติแล้ว';
+ try{projects[cur].items=items;var u=[],m={};
+  var P=projects.map(function(pr){return{n:pr.n,i:pr.items.map(function(o){var k=-1;if(o.img){if(m[o.img]===undefined){m[o.img]=u.length;u.push(o.img)}k=m[o.img]}return{a:o.t1,b:k,c:o.t3,d:o.t4}})}});
+  localStorage.setItem('labels_v2',JSON.stringify({cur:cur,u:u,p:P}));$('save').textContent=' · เก็บอัตโนมัติแล้ว';
  }catch(e){$('save').textContent=' · เก็บอัตโนมัติไม่ได้ ให้ดาวน์โหลด PDF ไว้'}
 }
 function restore(){
- try{var d=JSON.parse(localStorage.getItem('labels_v1')||'null');
-  if(d&&d.i)items=d.i.map(function(o){return{t1:o.a,img:o.b>=0?d.u[o.b]:'',t3:o.c,t4:o.d}});
- }catch(e){items=[]}
+ try{
+  var d=JSON.parse(localStorage.getItem('labels_v2')||'null');
+  if(d&&d.p&&d.p.length){
+   projects=d.p.map(function(pr){return{n:pr.n,items:pr.i.map(function(o){return{t1:o.a,img:o.b>=0?d.u[o.b]:'',t3:o.c,t4:o.d}})}});
+   cur=Math.min(d.cur||0,projects.length-1);
+  }else{
+   var o1=JSON.parse(localStorage.getItem('labels_v1')||'null');
+   if(o1&&o1.i)projects=[{n:'แผนก 1',items:o1.i.map(function(o){return{t1:o.a,img:o.b>=0?o1.u[o.b]:'',t3:o.c,t4:o.d}})}];
+  }
+ }catch(e){}
+ items=projects[cur].items;
 }
+function renderProj(){
+ $('proj').innerHTML=projects.map(function(p,i){return '<option value="'+i+'"'+(i===cur?' selected':'')+'>'+esc(p.n)+' ('+(i===cur?items.length:p.items.length)+' ป้าย)</option>'}).join('');
+}
+function resetForm(){editIdx=-1;setEditUI(false);$('t3').value='';$('t4').value=''}
+var nameMode=null,delT=null;
+$('proj').addEventListener('change',function(){projects[cur].items=items;cur=+$('proj').value;items=projects[cur].items;resetForm();live();render()});
+function askName(mode,v){nameMode=mode;$('pin').value=v;$('prow').style.display='flex';$('pin').focus();$('pin').select()}
+$('pnew').addEventListener('click',function(){askName('new','แผนก '+(projects.length+1))});
+$('pren').addEventListener('click',function(){askName('ren',projects[cur].n)});
+$('pcancel').addEventListener('click',function(){nameMode=null;$('prow').style.display='none'});
+$('pok').addEventListener('click',function(){
+ var v=$('pin').value.trim()||'ไม่มีชื่อ';
+ if(nameMode==='new'){projects[cur].items=items;projects.push({n:v,items:[]});cur=projects.length-1;items=projects[cur].items;resetForm();live()}
+ else if(nameMode==='ren'){projects[cur].n=v}
+ nameMode=null;$('prow').style.display='none';render();
+});
+$('pin').addEventListener('keydown',function(e){if(e.key==='Enter')$('pok').click()});
+$('pdel').addEventListener('click',function(){
+ var b=$('pdel');
+ if(projects.length<2){msg('ต้องมีอย่างน้อย 1 แผนก ถ้าอยากล้างป้ายให้กด “ล้างป้ายในแผนกนี้”');return}
+ if(delT){clearTimeout(delT);delT=null;b.textContent='ลบแผนก';projects.splice(cur,1);cur=Math.max(0,cur-1);items=projects[cur].items;resetForm();live();render();return}
+ b.textContent='กดอีกครั้งเพื่อลบแผนกนี้';
+ delT=setTimeout(function(){delT=null;b.textContent='ลบแผนก'},4000);
+});
 function loadImg(src){return new Promise(function(ok){var im=new Image();im.onload=function(){ok(im)};im.onerror=function(){ok(null)};im.src=src})}
 async function makePdf(){
  var dl=(window.claude&&claude.use)?await claude.use('downloads'):null;
@@ -248,9 +286,10 @@ async function makePdf(){
    if(p>0)doc.addPage();
    doc.addImage(c.toDataURL('image/jpeg',.95),'JPEG',0,0,210,297);
   }
+  var nm=projects[cur].n,fname=(/^[\x20-\x7e]+$/.test(nm)?nm.replace(/[\\/:*?"<>|]/g,'_'):'labels-'+(cur+1))+'.pdf';
   var blob=doc.output('blob');
-  if(dl){await dl.save({filename:'labels.pdf',data:blob})}
-  else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='labels.pdf';document.body.appendChild(a);a.click();a.remove()}
+  if(dl){await dl.save({filename:fname,data:blob})}
+  else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove()}
  }catch(e){if(!e||e.code!=='declined')msg('สร้างหรือบันทึก PDF ไม่สำเร็จ ลองกดอีกครั้ง')}
  btn.disabled=false;btn.textContent='ดาวน์โหลด PDF';
 }
