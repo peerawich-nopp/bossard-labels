@@ -66,7 +66,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
    <label class="f" for="img">ช่อง 2 รูป</label>
    <input type="file" id="img" accept="image/*">
    <div class="chk"><input type="checkbox" id="rmbg" checked><label for="rmbg">ลบพื้นหลังสีขาวของรูป</label></div>
-   <div class="chk"><input type="checkbox" id="holes"><label for="holes">ลบสีขาวในรูตรงกลางด้วย <span class="hint">(แหวน น็อต ที่มีรู)</span></label></div>
+   <div class="chk"><input type="checkbox" id="holes"><label for="holes">ลบสีขาวในรูตรงกลางด้วย <span class="hint">(เฉพาะรูใหญ่ ไม่ลบจุดสะท้อนแสงเล็กๆ บนชิ้นงาน)</span></label></div>
    <label class="f" for="tol">ความแรงในการลบ <span class="hint">(เพิ่มถ้ายังเหลือขอบขาว ลดถ้าลบโดนตัวชิ้นงาน)</span></label>
    <input type="range" id="tol" min="5" max="120" value="45" style="width:100%;margin-bottom:12px">
    <label class="f" for="edge">ลบขอบเพิ่ม <span class="hint">(เพิ่มถ้ายังมีเส้นขอบขาวบางๆ รอบชิ้นงาน)</span></label>
@@ -140,12 +140,20 @@ function applyBg(){
   var id=x.getImageData(0,0,w,h),d=id.data,t=+$('tol').value,lim=255-t,seen=new Uint8Array(w*h),st=[];
   var white=function(i){return d[i*4]>=lim&&d[i*4+1]>=lim&&d[i*4+2]>=lim};
   var push=function(i){if(!seen[i]&&white(i)){seen[i]=1;st.push(i)}};
-  if($('holes').checked){for(var z=0;z<w*h;z++)if(white(z))seen[z]=1}
-  else{
-  for(var a=0;a<w;a++){push(a);push((h-1)*w+a)}
-  for(var b=0;b<h;b++){push(b*w);push(b*w+w-1)}
+  for(var a2=0;a2<w;a2++){push(a2);push((h-1)*w+a2)}
+  for(var b2=0;b2<h;b2++){push(b2*w);push(b2*w+w-1)}
   while(st.length){var i=st.pop(),px=i%w,py=(i-px)/w;
    if(px>0)push(i-1);if(px<w-1)push(i+1);if(py>0)push(i-w);if(py<h-1)push(i+w)}
+  if($('holes').checked){ // remove only big enclosed white areas (holes), keep small shiny highlights
+   var l2=lim-20,w2=function(n){return d[n*4]>=l2&&d[n*4+1]>=l2&&d[n*4+2]>=l2},vis=new Uint8Array(w*h),minA=Math.max(300,w*h*0.005);
+   for(var z=0;z<w*h;z++){
+    if(seen[z]||vis[z]||!w2(z))continue;
+    var comp=[z],stk=[z];vis[z]=1;
+    while(stk.length){var c0=stk.pop(),u=c0%w,v=(c0-u)/w,nb=[];
+     if(u>0)nb.push(c0-1);if(u<w-1)nb.push(c0+1);if(v>0)nb.push(c0-w);if(v<h-1)nb.push(c0+w);
+     for(var k=0;k<nb.length;k++){var n=nb[k];if(!seen[n]&&!vis[n]&&w2(n)){vis[n]=1;stk.push(n);comp.push(n)}}}
+    if(comp.length>=minA)for(var k2=0;k2<comp.length;k2++)seen[comp[k2]]=1;
+   }
   }
   var adj=function(j){var u=j%w,v=(j-u)/w;return (u>0&&seen[j-1])||(u<w-1&&seen[j+1])||(v>0&&seen[j-w])||(v<h-1&&seen[j+w])};
   var E=+$('edge').value;
