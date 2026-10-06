@@ -66,6 +66,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-of
    <label class="f" for="img">ช่อง 2 รูป</label>
    <input type="file" id="img" accept="image/*">
    <div class="chk"><input type="checkbox" id="rmbg" checked><label for="rmbg">ลบพื้นหลังสีขาวของรูป</label></div>
+   <div class="chk"><input type="checkbox" id="holes"><label for="holes">ลบสีขาวในรูตรงกลางด้วย <span class="hint">(แหวน น็อต ที่มีรู)</span></label></div>
    <label class="f" for="tol">ความแรงในการลบ <span class="hint">(เพิ่มถ้ายังเหลือขอบขาว ลดถ้าลบโดนตัวชิ้นงาน)</span></label>
    <input type="range" id="tol" min="5" max="120" value="45" style="width:100%;margin-bottom:12px">
    <label class="f" for="t3">ช่อง 3 ข้อความ <span class="hint">(ตัวอักษร 22)</span></label>
@@ -137,10 +138,13 @@ function applyBg(){
   var id=x.getImageData(0,0,w,h),d=id.data,t=+$('tol').value,lim=255-t,seen=new Uint8Array(w*h),st=[];
   var white=function(i){return d[i*4]>=lim&&d[i*4+1]>=lim&&d[i*4+2]>=lim};
   var push=function(i){if(!seen[i]&&white(i)){seen[i]=1;st.push(i)}};
+  if($('holes').checked){for(var z=0;z<w*h;z++)if(white(z))seen[z]=1}
+  else{
   for(var a=0;a<w;a++){push(a);push((h-1)*w+a)}
   for(var b=0;b<h;b++){push(b*w);push(b*w+w-1)}
   while(st.length){var i=st.pop(),px=i%w,py=(i-px)/w;
    if(px>0)push(i-1);if(px<w-1)push(i+1);if(py>0)push(i-w);if(py<h-1)push(i+w)}
+  }
   var soft=lim-t; // feather zone just inside the object edge
   for(var j=0;j<w*h;j++){
    if(seen[j]){d[j*4+3]=0;continue}
@@ -152,6 +156,7 @@ function applyBg(){
  imgData=c.toDataURL('image/png');live();
 }
 $('rmbg').addEventListener('change',applyBg);
+$('holes').addEventListener('change',applyBg);
 $('tol').addEventListener('input',applyBg);
 function setEditUI(on){$('add').textContent=on?'บันทึกการแก้ไข':'เพิ่มลงหน้าปริ้น';$('cancel').style.display=on?'':'none'}
 $('add').addEventListener('click',function(){
